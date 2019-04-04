@@ -20,9 +20,10 @@ let node_id = ref (-1)
 let node_addr = ref (_empty_addr)
 let st = ref (coq_Init  _empty_addr)
 
+let blocks = ref 1
 let hashes = ref 0
 let last_measurement = ref 0
-let last_time = ref (Unix.time ())
+let last_time = ref (Unix.gettimeofday ())
 
 (* Command line arguments *)
 let usage msg =
@@ -115,7 +116,7 @@ let procMsg_wrapper () =
 
 let procInt_wrapper () =
   (* Randomly decide what to do *)
-  let shouldIssueTx = (Random.int 10000 = 0) in
+  let shouldIssueTx = false in
   match shouldIssueTx with
   | true ->
       let tx = clist_of_string ("TX " ^ (string_of_int (Random.int 65536))) in
@@ -131,8 +132,7 @@ let procInt_wrapper () =
       (* Bit of a hack to figure out whether a block was mined *)
       if List.length pkts > 0 then
         begin
-            Printf.printf "Mined a block!" ;
-            print_newline ();
+            blocks := !blocks + 1;
             st := st';
             send_all pkts;
             Some (st, pkts)
@@ -158,28 +158,42 @@ let main () =
     let peer_addrs = List.map addr_of_int peer_ids in
     nodes := List.map (fun nid -> (nid, ip_port_of_int nid)) peer_ids ;
     setup { nodes = !nodes; me = !node_id };
-    Printf.printf "%s" (str_cfg ());
-    print_newline ();
+    (* Printf.printf "%s" (str_cfg ()); *)
+    (* print_newline (); *)
 
     (* Wait so other nodes in the cluster have time to start listening *)
-    Unix.sleep 1;
+    (* Unix.sleep 1; *)
 
     begin
       st := {(coq_Init (addr_of_int !node_id)) with peers = peer_addrs} ;
-      Printf.printf "You are node %d (%s)" (int_of_addr !st.id) (string_of_address !st.id);
-      print_newline ();
+      (* Printf.printf "You are node %d (%s)" (int_of_addr !st.id) (string_of_address !st.id);
+      print_newline (); *)
       (* Send a ConnectMsg to all peers *)
-      let connects = List.map (fun pr -> {src = !node_addr; dst = pr; msg = ConnectMsg }) peer_addrs in
+      (* let connects = List.map (fun pr -> {src = !node_addr; dst = pr; msg = ConnectMsg }) peer_addrs in
       send_all connects ;
 
 
-      Printf.printf "\n---------\nChain\n%s\n---------\n" (string_of_blockchain (btChain !st.blockTree));
+      Printf.printf "\n---------\nChain\n%s\n---------\n" (string_of_blockchain (btChain !st.blockTree)); *)
 
+      last_measurement := !hashes;
+      last_time := Unix.gettimeofday ();
       while true do
         ignore (procInt_wrapper ());
-        ignore (procMsg_wrapper ()); 
+
+        if (Unix.gettimeofday () -. !last_time >= 5.0) then
+        begin
+          Printf.printf "%d %0.2f"
+          !blocks
+          ((float_of_int (!hashes - !last_measurement)) /. (Unix.gettimeofday () -. !last_time));
+          print_newline ();
+          last_time := Unix.gettimeofday ();
+          last_measurement := !hashes;
+        end;
+
+
+        (* ignore (procMsg_wrapper ());  *)
         (* Every 10 seconds, print your chain. *)
-        let ts = (int_of_float (Unix.time ())) in
+        (* let ts = (int_of_float (Unix.time ())) in
         if ts mod 10 = 0 then
           begin
             Printf.printf "\n---------\nChain\n%s\n---------\n" (string_of_blockchain (btChain !st.blockTree));
@@ -191,7 +205,7 @@ let main () =
             Unix.sleep 1 ;
             ()
           end
-        else ()
+        else () *)
       done;
     end
   end

@@ -146,7 +146,7 @@ let setup cfg =
   Printexc.record_backtrace true;
   the_cfg := Some cfg;
   let (_, port) = get_addr_port cfg cfg.me in
-  Printf.printf "listening on port %d" port; print_newline ();
+  (* Printf.printf "listening on port %d" port; print_newline (); *)
   setsockopt listen_fd SO_REUSEADDR true;
   bind listen_fd (ADDR_INET (inet_addr_any, port));
   listen listen_fd 8
